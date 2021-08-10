@@ -1,0 +1,63 @@
+# 'Allow scripts to access the OAuth token' was selected in pipeline.  Add the following YAML to any steps requiring access:
+#       env:
+#           MY_ACCESS_TOKEN: $(System.AccessToken)
+trigger:
+  branches:
+    include:
+    - main
+resources:
+  repositories:
+  - repository: self
+    type: git
+    ref: main
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    name: Default
+    demands:
+    - sudo
+  steps:
+  - checkout: self
+    persistCredentials: True
+  - task: DockerInstaller@0
+    displayName: Install Docker 17.09.0-ce
+  - task: Bash@3
+    displayName: OWASP-Scan
+    inputs:
+      targetType: inline
+      script: >
+        chmod -R 777  ./
+
+
+        docker run --rm -v $(pwd):/zap/wrk/:rw -t owasp/zap2docker-stable zap-full-scan.py -t https://clerqbot.com/ -g gen.conf -x OWASP-ZAP-Report.xml -r scan-report.html
+
+
+        true
+  - task: PowerShell@2
+    displayName: Convert-owasp-report
+    inputs:
+      targetType: inline
+      script: >
+        $XslPath = "/home/prosecure/pro-secure-test/OWASPToNUnit3.xslt"
+
+        $XmlInputPath = "$($Env:SYSTEM_DEFAULTWORKINGDIRECTORY)/OWASP-ZAP-Report.xml"
+
+        $XmlOutputPath = "$($Env:SYSTEM_DEFAULTWORKINGDIRECTORY)/Converted-OWASP-ZAP-Report.xml"
+
+        $XslTransform = New-Object System.Xml.Xsl.XslCompiledTransform
+
+        $XslTransform.Load($XslPath)
+
+        $XslTransform.Transform($XmlInputPath, $XmlOutputPath)
+  - task: PublishTestResults@2
+    displayName: Publish Test Results
+    inputs:
+      testRunner: NUnit
+      testResultsFiles: Converted-OWASP-ZAP-Report.xml
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: owasp-report'
+    inputs:
+      PathtoPublish: $(Build.SourcesDirectory)/scan-report.html
+      ArtifactName: owasp-report
+...

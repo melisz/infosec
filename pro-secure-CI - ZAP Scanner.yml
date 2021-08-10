@@ -1,0 +1,28 @@
+resources:
+  repositories:
+  - repository: self
+    type: git
+    ref: main
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    name: Default
+  steps:
+  - checkout: self
+  - task: DockerInstaller@0
+    displayName: Install Docker 17.09.0-ce
+  - task: owaspzap@1
+    displayName: ZAP Scanner
+    inputs:
+      aggressivemode: true
+      threshold: 1000
+      scantype: targetedScan
+      url: https://clerqbot.com/
+      port: 443
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: owasp-report'
+    inputs:
+      PathtoPublish: $(Build.SourcesDirectory)/owaspzap
+      ArtifactName: owasp-report
+...
